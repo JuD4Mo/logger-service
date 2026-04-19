@@ -4,7 +4,9 @@ import (
 	"context"
 	"fmt"
 	"log"
+	"net"
 	"net/http"
+	"net/rpc"
 	"time"
 
 	"github.com/JuD4Mo/logger-service/data"
@@ -51,9 +53,12 @@ func main() {
 		Models: data.New(client),
 	}
 
-	// start web server
+	// Register the RPC Server
+	err = rpc.Register(new(RPCServer))
 
-	// go app.serve()
+	go app.rpcListen()
+
+	// start web server
 	log.Println("Starting service on port", webPort)
 	srv := &http.Server{
 		Addr:    fmt.Sprintf(":%s", webPort),
@@ -66,17 +71,23 @@ func main() {
 	}
 }
 
-// func (app *Config) serve() {
-// 	srv := &http.Server{
-// 		Addr:    fmt.Sprintf(":%s", webPort),
-// 		Handler: app.routes(),
-// 	}
+func (app *Config) rpcListen() error {
+	log.Println("Starting RPC server on port ", rpcPort)
+	listen, err := net.Listen("tcp", fmt.Sprintf("0.0.0.0:%s", rpcPort))
+	if err != nil {
+		return err
+	}
+	defer listen.Close()
 
-// 	err := srv.ListenAndServe()
-// 	if err != nil {
-// 		log.Panic(err)
-// 	}
-// }
+	for {
+		rpcConn, err := listen.Accept()
+		if err != nil {
+			continue
+		}
+
+		go rpc.ServeConn(rpcConn)
+	}
+}
 
 func connectToMongo() (*mongo.Client, error) {
 	// create connection options
